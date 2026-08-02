@@ -106,3 +106,21 @@ sed -i 's/services/vpn/g' package/feeds/extraipk/luci-app-bypass/luasrc/controll
 sed -i 's/services/vpn/g' package/feeds/extraipk/luci-app-bypass/luasrc/model/cbi/bypass/*.lua
 sed -i 's/services/vpn/g' package/feeds/extraipk/luci-app-bypass/luasrc/view/bypass/*.htm
 
+
+## WiFi 兼容性优化（CT3003 专用）
+# 2.4G 频段默认使用 20MHz 频宽，提升 IoT 设备兼容性，避免部分智能家居设备无法连接
+# 注意：此修改仅在 wifi-profile 文件存在时生效，v7.6.7.3 驱动可能使用不同路径
+if [ -f "package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b0.dat" ]; then
+    sed -i 's/BandWidth=2.4G_40/BandWidth=2.4G_20/g' package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b0.dat 2>/dev/null || true
+fi
+
+# 5G 频段固定 80MHz，避免 160MHz 导致部分设备断流
+if [ -f "package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b1.dat" ]; then
+    sed -i 's/BandWidth=5G_160/BandWidth=5G_80/g' package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b1.dat 2>/dev/null || true
+fi
+
+# 禁用 2.4G MU-MIMO，避免部分旧设备连接异常（可在 LuCI 中手动重新开启）
+if [ -f "package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b0.dat" ]; then
+    sed -i 's/MuOfdma=1/MuOfdma=0/g' package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b0.dat 2>/dev/null || true
+fi
+
