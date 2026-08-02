@@ -75,6 +75,13 @@ jobs:
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
+    - name: Cache ccache
+      uses: actions/cache@v4
+      with:
+        path: /home/runner/.ccache
+        key: ccache-mt7986-${{ github.sha }}
+        restore-keys: ccache-mt7986-
+
     - name: Build firmware
       working-directory: ./openwrt
       run: |      
@@ -99,19 +106,19 @@ jobs:
         cp -a $rom ./ARM_Out/EasyWrt-Redmi-AX6000-5.4-$(date +%Y%m%d)_${md5}.bin
                
     - name: Upload Firmwares
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       with:
         name: AX6000-OpenWrt
         path: ARM_Out/*.bin
 
     - name: Upload config
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       with:
         name: ax6000-config
         path: ARM_Out/ae86.config
 
     - name: Upload Packages
-      uses: actions/upload-artifact@main
+      uses: actions/upload-artifact@v4
       with:
         name: AX6000-Packages
         path: openwrt/bin/packages
