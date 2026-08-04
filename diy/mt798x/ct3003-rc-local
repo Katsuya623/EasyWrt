@@ -1,0 +1,21 @@
+# Put your custom commands here that should be executed once
+# the system init finished. By default this file does nothing.
+
+# === CT3003 性能优化 ===
+
+# RPS 多核收包分发（MT7981 双核A53，默认中断全绑CPU0）
+echo 3 > /sys/class/net/eth0/queues/rx-0/rps_cpus 2>/dev/null
+echo 3 > /sys/class/net/br-lan/queues/rx-0/rps_cpus 2>/dev/null
+echo 3 > /sys/class/net/ra0/queues/rx-0/rps_cpus 2>/dev/null
+
+# 禁用 br-lan IPv6 转发（hnat 不支持 IPv6 硬件加速）
+echo 0 > /proc/sys/net/ipv6/conf/br-lan/forwarding 2>/dev/null
+
+# 删除 br-lan 全局 IPv6 地址（阻止 LAN 设备获取 IPv6）
+sleep 3
+ip -6 addr show dev br-lan 2>/dev/null | grep "scope global" | while read line; do
+    addr=$(echo "$line" | awk '{print $2}')
+    ip -6 addr del $addr dev br-lan 2>/dev/null
+done
+
+exit 0

@@ -1,0 +1,13 @@
+# This file is interpreted as shell script.
+# Put your custom iptables rules here, they will
+# be executed with each firewall (re-)start.
+
+# Internal uci firewall chains are flushed and recreated on reload, so
+# put custom rules into the root chains e.g. INPUT or FORWARD or into the
+# special user chains, e.g. input_wan_rule or postrouting_lan_rule.
+
+# === CT3003 IPv6 优化 ===
+# REJECT IPv6 转发：MT7981 hnat 不支持 IPv6 硬件NAT加速，
+# 手机 Happy Eyeballs 优先 IPv6 → 超时 → 回退 IPv4（这段等待 = 视频卡顿）
+# 用 REJECT 而非 DROP：让客户端立刻收到拒绝，快速回退 IPv4
+ip6tables -I FORWARD 1 -j REJECT --reject-with icmp6-port-unreachable

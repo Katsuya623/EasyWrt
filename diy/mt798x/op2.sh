@@ -107,20 +107,50 @@ sed -i 's/services/vpn/g' package/feeds/extraipk/luci-app-bypass/luasrc/model/cb
 sed -i 's/services/vpn/g' package/feeds/extraipk/luci-app-bypass/luasrc/view/bypass/*.htm
 
 
-## WiFi 兼容性优化（CT3003 专用）
-# 2.4G 频段默认使用 20MHz 频宽，提升 IoT 设备兼容性，避免部分智能家居设备无法连接
-# 注意：此修改仅在 wifi-profile 文件存在时生效，v7.6.7.3 驱动可能使用不同路径
+## WiFi 兼容性与性能优化（CT3003 专用）
+# --- 2.4G ---
 if [ -f "package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b0.dat" ]; then
-    sed -i 's/BandWidth=2.4G_40/BandWidth=2.4G_20/g' package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b0.dat 2>/dev/null || true
+    DAT_B0="package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b0.dat"
+    # 2.4G 频宽 20MHz，提升 IoT 设备兼容性
+    sed -i 's/BandWidth=2.4G_40/BandWidth=2.4G_20/g' "$DAT_B0" 2>/dev/null || true
+    # 禁用 2.4G MU-OFDMA（DL+UL），避免旧设备连接异常
+    sed -i 's/MuOfdmaDlEnable=1/MuOfdmaDlEnable=0/g' "$DAT_B0" 2>/dev/null || true
+    sed -i 's/MuOfdmaUlEnable=1/MuOfdmaUlEnable=0/g' "$DAT_B0" 2>/dev/null || true
 fi
 
-# 5G 频段固定 80MHz，避免 160MHz 导致部分设备断流
+# --- 5G ---
 if [ -f "package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b1.dat" ]; then
-    sed -i 's/BandWidth=5G_160/BandWidth=5G_80/g' package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b1.dat 2>/dev/null || true
+    DAT_B1="package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b1.dat"
+    # 5G 频宽固定 80MHz，避免 160MHz + DFS 信道导致驱动报错和设备断流
+    sed -i 's/BandWidth=5G_160/BandWidth=5G_80/g' "$DAT_B1" 2>/dev/null || true
+    # 禁用 5G MU-OFDMA（DL+UL），与部分手机浏览器兼容性冲突
+    sed -i 's/MuOfdmaDlEnable=1/MuOfdmaDlEnable=0/g' "$DAT_B1" 2>/dev/null || true
+    sed -i 's/MuOfdmaUlEnable=1/MuOfdmaUlEnable=0/g' "$DAT_B1" 2>/dev/null || true
 fi
 
-# 禁用 2.4G MU-MIMO，避免部分旧设备连接异常（可在 LuCI 中手动重新开启）
-if [ -f "package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b0.dat" ]; then
-    sed -i 's/MuOfdma=1/MuOfdma=0/g' package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b0.dat 2>/dev/null || true
+## 5G 信道固定 ch36（非 DFS），避免 vht80_channel_group invalid ch_band 0 驱动报错
+# 修改 wireless uci defaults 使 5G 默认信道为 36
+if [ -f "package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b1.dat" ]; then
+    sed -i 's/Channel=0/Channel=36/g' package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b1.dat 2>/dev/null || true
+fi
+
+
+## === CT3003 运行时优化（打包进固件） ===
+# 1. uci-defaults：首次启动时执行（DNS/IPv6/WiFi），执行后自动删除
+if [ -f "../diy/mt798x/ct3003-uci-defaults" ]; then
+    cp -f ../diy/mt798x/ct3003-uci-defaults package/base-files/files/etc/uci-defaults/99-ct3003-optimize
+    chmod +x package/base-files/files/etc/uci-defaults/99-ct3003-optimize
+fi
+
+# 2. rc.local：每次启动执行（RPS多核/IPv6 forwarding/删全局IPv6）
+if [ -f "../diy/mt798x/ct3003-rc-local" ]; then
+    cp -f ../diy/mt798x/ct3003-rc-local package/base-files/files/etc/rc.local
+    chmod +x package/base-files/files/etc/rc.local
+fi
+
+# 3. firewall.user：防火墙启动时执行（REJECT IPv6 FORWARD）
+if [ -f "../diy/mt798x/ct3003-firewall-user" ]; then
+    cp -f ../diy/mt798x/ct3003-firewall-user package/base-files/files/etc/firewall.user
+    chmod +x package/base-files/files/etc/firewall.user
 fi
 

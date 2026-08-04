@@ -1,0 +1,32 @@
+#!/bin/sh
+# ============================================================
+# CT3003 首次启动优化脚本
+# 由 op2.sh 复制到 /etc/uci-defaults/99-ct3003-optimize
+# uci-defaults 机制：首次启动执行一次，执行后自动删除
+# ============================================================
+
+# --- DNS：使用阿里+腾讯公共DNS，拒绝运营商DNS ---
+uci set network.wan.peerdns='0'
+uci del_list network.wan.dns='223.5.5.5' 2>/dev/null
+uci del_list network.wan.dns='119.29.29.29' 2>/dev/null
+uci add_list network.wan.dns='223.5.5.5'
+uci add_list network.wan.dns='119.29.29.29'
+
+# --- 禁用 LAN 侧 IPv6 ---
+# 根因：MT7981 hnat 不支持 IPv6 硬件NAT加速，手机优先走IPv6（Happy Eyeballs）
+# 导致 IPv6 SYN 超时后才回退 IPv4，表现为视频加载等待
+uci set dhcp.lan.ra='disabled'
+uci set dhcp.lan.dhcpv6='disabled'
+uci set dhcp.lan.ndp='disabled'
+
+# --- 5G WiFi：固定 ch36（非DFS）+ HE80 ---
+# DFS 信道 + 160MHz 触发 vht80_channel_group invalid ch_band 0 驱动bug
+uci set wireless.mt7981_1_2.channel='36'
+uci set wireless.mt7981_1_2.htmode='HE80'
+
+# --- 提交所有 uci 修改 ---
+uci commit network
+uci commit dhcp
+uci commit wireless
+
+exit 0
