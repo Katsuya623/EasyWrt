@@ -19,10 +19,11 @@ uci set dhcp.lan.ra='disabled'
 uci set dhcp.lan.dhcpv6='disabled'
 uci set dhcp.lan.ndp='disabled'
 
-# --- 5G WiFi：固定 ch36（非DFS）+ HE80 ---
-# DFS 信道 + 160MHz 触发 vht80_channel_group invalid ch_band 0 驱动bug
+# --- 5G WiFi：固定 ch36（非DFS）+ HE160 ---
+# ch36 非 DFS，不会触发 vht80_channel_group 驱动 bug，160MHz 可安全开启
+# 千兆宽带 + iPhone/笔记本均支持 HE160，可跑满 5G 频段协商速率
 uci set wireless.mt7981_1_2.channel='36'
-uci set wireless.mt7981_1_2.htmode='HE80'
+uci set wireless.mt7981_1_2.htmode='HE160'
 
 # --- 提交所有 uci 修改 ---
 uci commit network
