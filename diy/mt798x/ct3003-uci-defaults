@@ -5,12 +5,16 @@
 # uci-defaults 机制：首次启动执行一次，执行后自动删除
 # ============================================================
 
-# --- DNS：使用阿里+腾讯公共DNS，拒绝运营商DNS ---
-uci set network.wan.peerdns='0'
+# --- DNS：运营商 DNS 为主 + 公共 DNS 备用 ---
+# peerdns=1：PPPoE/DHCP 自动获取运营商 DNS 作为主 DNS
+# 运营商 DNS 对 CDN 调度最精准（同城节点，延迟最低）
+# 公共 DNS 作为备用兜底（运营商 DNS 偶尔故障时接管）
+# dnsmasq 会按顺序尝试：先查运营商 DNS，超时才走公共 DNS
+uci set network.wan.peerdns='1'
 uci del_list network.wan.dns='223.5.5.5' 2>/dev/null
 uci del_list network.wan.dns='119.29.29.29' 2>/dev/null
-uci add_list network.wan.dns='223.5.5.5'
-uci add_list network.wan.dns='119.29.29.29'
+uci add_list network.wan.dns='223.5.5.5'       # 备用：阿里 DNS
+uci add_list network.wan.dns='119.29.29.29'    # 备用：腾讯 DNS
 
 # --- 禁用 LAN 侧 IPv6 ---
 # 根因：MT7981 hnat 不支持 IPv6 硬件NAT加速，手机优先走IPv6（Happy Eyeballs）
