@@ -4,9 +4,9 @@ on:
   repository_dispatch:
   workflow_dispatch:
 
-# 定时触发编译（UTC 时间，北京时间周五 20:00）
+# 定时触发编译（UTC 时间，北京时间周五 06:00）
   schedule:
-    - cron: 0 12 * * 5
+    - cron: 0 22 * * 4
 
 # 点赞☆Star触发编译
 #  watch:
