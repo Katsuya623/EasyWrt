@@ -8,6 +8,10 @@ echo 3 > /sys/class/net/eth0/queues/rx-0/rps_cpus 2>/dev/null
 echo 3 > /sys/class/net/br-lan/queues/rx-0/rps_cpus 2>/dev/null
 echo 3 > /sys/class/net/ra0/queues/rx-0/rps_cpus 2>/dev/null
 
+# IGMP/MLD snooping 强制开启（UCI 设置不总是生效）
+echo 1 > /sys/devices/virtual/net/br-lan/bridge/multicast_snooping 2>/dev/null
+echo 1 > /sys/devices/virtual/net/br-lan/bridge/multicast_querier 2>/dev/null
+
 # 禁用 br-lan IPv6 转发（hnat 不支持 IPv6 硬件加速）
 echo 0 > /proc/sys/net/ipv6/conf/br-lan/forwarding 2>/dev/null
 
