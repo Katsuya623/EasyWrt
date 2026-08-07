@@ -46,8 +46,8 @@ uci set wireless.MT7981_1_2.wnm_disassoc_imminent='1'
 # 家用千兆宽带 HE80 协商速率 1.2Gbps 已足够跑满
 # HE160 需连续 8 信道，导致所有 AP 必须同信道组，同频干扰严重
 # HE80 允许相邻 AP 信道错开（ch36 vs ch149），零干扰漫游
-uci set wireless.mt7981_1_2.channel='36'
-uci set wireless.mt7981_1_2.htmode='HE80'
+uci set wireless.MT7981_1_2.channel='36'
+uci set wireless.MT7981_1_2.htmode='HE80'
 
 # ============================================================
 # --- IGMP/MLD Snooping ---
