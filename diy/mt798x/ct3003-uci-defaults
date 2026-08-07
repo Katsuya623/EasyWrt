@@ -6,121 +6,87 @@
 # ============================================================
 
 # --- DNS：运营商 DNS 为主 + 公共 DNS 备用 ---
-# peerdns=1：PPPoE/DHCP 自动获取运营商 DNS 作为主 DNS
-# 运营商 DNS 对 CDN 调度最精准（同城节点，延迟最低）
-# 公共 DNS 作为备用兜底（运营商 DNS 偶尔故障时接管）
-# dnsmasq 会按顺序尝试：先查运营商 DNS，超时才走公共 DNS
 uci set network.wan.peerdns='1'
 uci del_list network.wan.dns='223.5.5.5' 2>/dev/null
 uci del_list network.wan.dns='119.29.29.29' 2>/dev/null
-uci add_list network.wan.dns='223.5.5.5'       # 备用：阿里 DNS
-uci add_list network.wan.dns='119.29.29.29'    # 备用：腾讯 DNS
+uci add_list network.wan.dns='223.5.5.5'
+uci add_list network.wan.dns='119.29.29.29'
 
 # --- 禁用 LAN 侧 IPv6 ---
-# 根因：MT7981 hnat 不支持 IPv6 硬件NAT加速，手机优先走IPv6（Happy Eyeballs）
-# 导致 IPv6 SYN 超时后才回退 IPv4，表现为视频加载等待
 uci set dhcp.lan.ra='disabled'
 uci set dhcp.lan.dhcpv6='disabled'
 uci set dhcp.lan.ndp='disabled'
 
 # ============================================================
-# --- WiFi 层 802.11r/k/v 漫游参数显式启用 ---
+# --- WiFi 频宽/信道/模式（wifi-device 段）---
 # ============================================================
-# MTK 驱动编译开关只提供能力，wireless uci 必须显式打开才能生效
-# 对 2.4G 和 5G 两个接口都设置
+# 必须在 uci-defaults 里显式设 htmode/channel，
+# 否则 op2.sh 改了 dat 文件频宽但 uci 没改，两层打架
 
-# --- 2.4G 接口 (wifi-iface) ---
-# 注意：ft/rrm/wnm 必须设在 wifi-iface 上，设在 wifi-device 上无效
-# immortalwrt-mt798x 的 iface section 名为 default_MT7981_1_1 / default_MT7981_1_2
-uci set wireless.default_MT7981_1_1.ft_over_ds='1'         # 802.11r: 通过 DS 分发 FT，更稳
-uci set wireless.default_MT7981_1_1.ft_psk_generate_local='1' # 802.11r: 本地生成 PMK-R1，无需控制器
-uci set wireless.default_MT7981_1_1.rrm='1'                 # 802.11k: 无线资源测量
-uci set wireless.default_MT7981_1_1.wnm_disassoc_imminent='1' # 802.11v: BSS Transition
+# --- 2.4G wifi-device ---
+uci set wireless.MT7981_1_1.htmode='HT20'    # 2.4G 20MHz，IoT 兼容性最佳
+uci set wireless.MT7981_1_1.channel='1'       # 固定 ch1，配合多 AP 漫游错开信道
 
-# --- 5G 接口 (wifi-iface) ---
+# --- 5G wifi-device ---
+uci set wireless.MT7981_1_2.htmode='HE80'    # 5G 80MHz，千兆够用且漫游信道可错开
+uci set wireless.MT7981_1_2.channel='36'      # ch36 非 DFS，无驱动报错
+
+# ============================================================
+# --- 802.11r/k/v 漫游参数（wifi-iface 段）---
+# ============================================================
+# ft/rrm/wnm 必须设在 wifi-iface 上，设在 wifi-device 上无效
+# immortalwrt-mt798x iface section: default_MT7981_1_1 / default_MT7981_1_2
+
+# --- 2.4G ---
+uci set wireless.default_MT7981_1_1.ft_over_ds='1'
+uci set wireless.default_MT7981_1_1.ft_psk_generate_local='1'
+uci set wireless.default_MT7981_1_1.rrm='1'
+uci set wireless.default_MT7981_1_1.wnm_disassoc_imminent='1'
+
+# --- 5G ---
 uci set wireless.default_MT7981_1_2.ft_over_ds='1'
 uci set wireless.default_MT7981_1_2.ft_psk_generate_local='1'
 uci set wireless.default_MT7981_1_2.rrm='1'
 uci set wireless.default_MT7981_1_2.wnm_disassoc_imminent='1'
 
-# --- 5G WiFi：固定 ch36（非DFS）+ HE80 ---
-# 家用千兆宽带 HE80 协商速率 1.2Gbps 已足够跑满
-# HE160 需连续 8 信道，导致所有 AP 必须同信道组，同频干扰严重
-# HE80 允许相邻 AP 信道错开（ch36 vs ch149），零干扰漫游
-# channel/htmode 设在 wifi-device 段（MT7981_1_2）
-uci set wireless.MT7981_1_2.channel='36'
-uci set wireless.MT7981_1_2.htmode='HE80'
-
 # ============================================================
 # --- IGMP/MLD Snooping ---
 # ============================================================
-# 组播优化：投屏(AirPlay/DLNA)、IPTV、mDNS 发现依赖组播
-# 不开启则组播帧泛洪到所有端口，多 AP 下带宽浪费严重
-# bridge 的 igmp_snooping 让交换机只向订阅端口转发组播
 uci set network.lan.igmp_snooping='1'
-uci set network.lan.multicast_querier='1'   # 桥上发 IGMP Query，保持组播状态
+uci set network.lan.multicast_querier='1'
 
 # ============================================================
-# --- Dawn 漫游控制器（完整配置）---
+# --- Dawn 漫游控制器 ---
 # ============================================================
-# Dawn 是 802.11k/v/r 漫游决策引擎，比 usteer 兼容性更好
+# ⚠️ 不能用 dawn.@dawn[0] 语法！uci-defaults 执行时 Dawn 包
+#    可能还没安装，@dawn[0] 找不到 section 会静默失败。
+#    必须用具名 section：dawn.global / dawn.802_11a / dawn.802_11g
+#    这些是 Dawn 默认配置文件里已有的 section 名
 
-uci set dawn.@dawn[0].enabled='1'
+# --- global 漫游策略 ---
+uci set dawn.global.kicking='3'                  # 踢除模式：3=基于 RSSI
+uci set dawn.global.kicking_threshold='20'       # 踢除阈值差：20dBm
+uci set dawn.global.min_number_to_kick='3'       # 至少 3 次评估才踢
+uci set dawn.global.use_station_count='0'        # 不按连接数决策
+uci set dawn.global.eval_probe_req='0'           # 不评估 probe 请求
+uci set dawn.global.eval_auth_req='0'
+uci set dawn.global.eval_assoc_req='0'
+uci set dawn.global.set_hostapd_nr='1'           # 关键！让 Dawn 写邻居报告到 hostapd
+uci set dawn.global.deny_assoc_reason='17'       # 802.11v 拒绝原因码 17
 
-# --- 漫游阈值 ---
-uci set dawn.@dawn[0].rssi_roam='-70'       # 触发漫游：-70dBm，偏激进减少粘滞
-uci set dawn.@dawn[0].rssi_kick='-80'       # 踢除弱信号：-80dBm
-uci set dawn.@dawn[0].rssi_auth='-80'       # 拒绝弱关联：-80dBm
+# --- 802_11a（5G 频段）---
+uci set dawn.802_11a.rssi_val='-70'              # 漫游触发：-70dBm
+uci set dawn.802_11a.low_rssi_val='-80'          # 踢除/拒绝：-80dBm
+uci set dawn.802_11a.rssi_center='-70'           # RSSI 中心值
 
-# --- 802.11v BSS Transition Management ---
-uci set dawn.@dawn[0].bss_transition='1'    # 主动发 BSS TM Request 引导客户端
-
-# --- 802.11k 邻居报告 ---
-uci set dawn.@dawn[0].neighbor_report='1'   # 客户端可查询周围 AP 信息
-
-# --- 漫游检查间隔 ---
-uci set dawn.@dawn[0].hostapd_sync_interval='5'  # 每 5 秒评估客户端信号
-
-# --- 主动探测（关键！之前遗漏）---
-# use_probing=1: Dawn 主动发 Null Data Request 探测客户端真实 RSSI
-# 不开启则只能被动等客户端发帧才更新信号，响应延迟 5~30 秒
-uci set dawn.@dawn[0].use_probing='1'
-
-# --- 信道利用率评估 ---
-# channel_utilization=0: 不基于信道利用率做漫游决策
-# 家用场景 AP 负载低，开这个反而可能导致误判
-uci set dawn.@dawn[0].channel_utilization='0'
-
-# --- Band Steering（频段引导）---
-# 引导双频客户端优先关联 5G（信号足够时）
-# 依赖 802.11v，MTK 驱动下大概率生效
-uci set dawn.@dawn[0].band_steering='1'
-
-# --- 踢除超时 ---
-# 踢掉客户端后等 100ms 再允许重关联，给客户端时间扫描其他 AP
-uci set dawn.@dawn[0].kick_timeout='100'
-
-# --- 最大邻居数 ---
-# 限制邻居报告中的 AP 数量，避免报告过长
-uci set dawn.@dawn[0].max_neighbor_reports='8'
-
-# --- 漫游频段权重 ---
-# 5G 频段权重更高，引导客户端优先漫游到 5G
-uci set dawn.@dawn[0].roam_band='5g'
+# --- 802_11g（2.4G 频段）---
+uci set dawn.802_11g.rssi_val='-70'
+uci set dawn.802_11g.low_rssi_val='-80'
+uci set dawn.802_11g.rssi_center='-70'
 
 # ============================================================
-# --- 多 AP 统一配置提示 ---
-# ============================================================
-# 有线回程方案要求所有 AP 满足以下条件：
-# 1. 相同 SSID（2.4G 和 5G 分别统一）
-# 2. 相同加密方式（WPA2-PSK AES，兼容性最佳）
-# 3. 相同密码
-# 4. 不同 BSSID（自动，每台 AP 的 MAC 不同）
-# 5. 不同信道（HE80 下 5G 可 ch36/ch149 交替，零同频干扰）
-# 6. 相同 VLAN/子网（所有 AP 的 LAN 在同一广播域）
-# 7. 所有 AP 都运行 dawn
-
 # --- 提交所有 uci 修改 ---
+# ============================================================
 uci commit network
 uci commit dhcp
 uci commit wireless
