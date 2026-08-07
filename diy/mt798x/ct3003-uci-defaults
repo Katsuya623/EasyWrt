@@ -1,6 +1,6 @@
 #!/bin/sh
 # ============================================================
-# CT3003 首次启动优化脚本（有线回程 AP 漫游版）
+# CT3003 首次启动优化脚本（有线回程 AP 漫游版 — 最优实践）
 # 由 op2.sh 复制到 /etc/uci-defaults/99-ct3003-optimize
 # uci-defaults 机制：首次启动执行一次，执行后自动删除
 # ============================================================
@@ -19,62 +19,99 @@ uci set dhcp.lan.ra='disabled'
 uci set dhcp.lan.dhcpv6='disabled'
 uci set dhcp.lan.ndp='disabled'
 
-# --- 5G WiFi：固定 ch36（非DFS）+ HE160 ---
-# ch36 非 DFS，不会触发 vht80_channel_group 驱动 bug，160MHz 可安全开启
-# 千兆宽带 + iPhone/笔记本均支持 HE160，可跑满 5G 频段协商速率
+# ============================================================
+# --- WiFi 层 802.11r/k/v 漫游参数显式启用 ---
+# ============================================================
+# MTK 驱动编译开关只提供能力，wireless uci 必须显式打开才能生效
+# 对 2.4G 和 5G 两个接口都设置
+
+# --- 2.4G 接口 (mt7981_0_1) ---
+uci set wireless.mt7981_0_1.ft_over_ds='1'         # 802.11r: 通过 DS 分发 FT，更稳
+uci set wireless.mt7981_0_1.ft_psk_generate_local='1' # 802.11r: 本地生成 PMK-R1，无需控制器
+uci set wireless.mt7981_0_1.rrm='1'                 # 802.11k: 无线资源测量
+uci set wireless.mt7981_0_1.wnm_disassoc_imminent='1' # 802.11v: BSS Transition
+
+# --- 5G 接口 (mt7981_1_2) ---
+uci set wireless.mt7981_1_2.ft_over_ds='1'
+uci set wireless.mt7981_1_2.ft_psk_generate_local='1'
+uci set wireless.mt7981_1_2.rrm='1'
+uci set wireless.mt7981_1_2.wnm_disassoc_imminent='1'
+
+# --- 5G WiFi：固定 ch36（非DFS）+ HE80 ---
+# 家用千兆宽带 HE80 协商速率 1.2Gbps 已足够跑满
+# HE160 需连续 8 信道，导致所有 AP 必须同信道组，同频干扰严重
+# HE80 允许相邻 AP 信道错开（ch36 vs ch149），零干扰漫游
 uci set wireless.mt7981_1_2.channel='36'
-uci set wireless.mt7981_1_2.htmode='HE160'
+uci set wireless.mt7981_1_2.htmode='HE80'
 
 # ============================================================
-# --- 有线回程 AP 漫游：Dawn 漫游控制器配置 ---
+# --- IGMP/MLD Snooping ---
 # ============================================================
-# Dawn 是 802.11k/v/r 漫游决策引擎，比 usteer 兼容性更好：
-# - 完整 802.11v BSS Transition Management 支持
-# - 802.11k 邻居报告
-# - 基于信号强度的主动引导
-# - 兼容小米/安卓/iOS/Windows 全平台
+# 组播优化：投屏(AirPlay/DLNA)、IPTV、mDNS 发现依赖组播
+# 不开启则组播帧泛洪到所有端口，多 AP 下带宽浪费严重
+# bridge 的 igmp_snooping 让交换机只向订阅端口转发组播
+uci set network.lan.igmp_snooping='1'
+uci set network.lan.multicast_querier='1'   # 桥上发 IGMP Query，保持组播状态
 
-# 启用 dawn 服务
+# ============================================================
+# --- Dawn 漫游控制器（完整配置）---
+# ============================================================
+# Dawn 是 802.11k/v/r 漫游决策引擎，比 usteer 兼容性更好
+
 uci set dawn.@dawn[0].enabled='1'
 
 # --- 漫游阈值 ---
-# rssi_roam：触发主动漫游的 RSSI 阈值
-#   -70 dBm 适合多数家庭场景（偏激进，减少粘滞）
-#   如果用户常在 AP 间移动时可适当调高至 -65
-uci set dawn.@dawn[0].rssi_roam='-70'
-
-# rssi_kick：低于此值踢掉客户端（让其重新关联更近的 AP）
-# -80 dBm 保守值，避免边缘区域误踢
-uci set dawn.@dawn[0].rssi_kick='-80'
-
-# rssi_auth：低于此值拒绝新关联（引导到信号更好的 AP）
-# -80 dBm 与 kick 对齐
-uci set dawn.@dawn[0].rssi_auth='-80'
+uci set dawn.@dawn[0].rssi_roam='-70'       # 触发漫游：-70dBm，偏激进减少粘滞
+uci set dawn.@dawn[0].rssi_kick='-80'       # 踢除弱信号：-80dBm
+uci set dawn.@dawn[0].rssi_auth='-80'       # 拒绝弱关联：-80dBm
 
 # --- 802.11v BSS Transition Management ---
-# 主动发送 BSS TM Request 引导客户端漫游
-# 兼容性：iOS 11+/Android 8+/Windows 10+ 均支持
-uci set dawn.@dawn[0].bss_transition='1'
+uci set dawn.@dawn[0].bss_transition='1'    # 主动发 BSS TM Request 引导客户端
 
 # --- 802.11k 邻居报告 ---
-# 让客户端了解周围 AP 的信号信息，辅助漫游决策
-uci set dawn.@dawn[0].neighbor_report='1'
+uci set dawn.@dawn[0].neighbor_report='1'   # 客户端可查询周围 AP 信息
 
 # --- 漫游检查间隔 ---
-# 每 5 秒评估一次客户端信号，平衡响应速度与 CPU 开销
-uci set dawn.@dawn[0].hostapd_sync_interval='5'
+uci set dawn.@dawn[0].hostapd_sync_interval='5'  # 每 5 秒评估客户端信号
+
+# --- 主动探测（关键！之前遗漏）---
+# use_probing=1: Dawn 主动发 Null Data Request 探测客户端真实 RSSI
+# 不开启则只能被动等客户端发帧才更新信号，响应延迟 5~30 秒
+uci set dawn.@dawn[0].use_probing='1'
+
+# --- 信道利用率评估 ---
+# channel_utilization=0: 不基于信道利用率做漫游决策
+# 家用场景 AP 负载低，开这个反而可能导致误判
+uci set dawn.@dawn[0].channel_utilization='0'
+
+# --- Band Steering（频段引导）---
+# 引导双频客户端优先关联 5G（信号足够时）
+# 依赖 802.11v，MTK 驱动下大概率生效
+uci set dawn.@dawn[0].band_steering='1'
+
+# --- 踢除超时 ---
+# 踢掉客户端后等 100ms 再允许重关联，给客户端时间扫描其他 AP
+uci set dawn.@dawn[0].kick_timeout='100'
+
+# --- 最大邻居数 ---
+# 限制邻居报告中的 AP 数量，避免报告过长
+uci set dawn.@dawn[0].max_neighbor_reports='8'
+
+# --- 漫游频段权重 ---
+# 5G 频段权重更高，引导客户端优先漫游到 5G
+uci set dawn.@dawn[0].roam_band='5g'
 
 # ============================================================
 # --- 多 AP 统一配置提示 ---
 # ============================================================
 # 有线回程方案要求所有 AP 满足以下条件：
 # 1. 相同 SSID（2.4G 和 5G 分别统一）
-# 2. 相同加密方式（推荐 WPA3-SAE 兼容模式即 WPA2/WPA3-Mixed）
+# 2. 相同加密方式（WPA2-PSK AES，兼容性最佳）
 # 3. 相同密码
 # 4. 不同 BSSID（自动，每台 AP 的 MAC 不同）
-# 5. 不同信道（避免同频干扰，相邻 AP 信岔开）
+# 5. 不同信道（HE80 下 5G 可 ch36/ch149 交替，零同频干扰）
 # 6. 相同 VLAN/子网（所有 AP 的 LAN 在同一广播域）
-# 7. 所有 AP 都运行 dawn 并指向主 AP
+# 7. 所有 AP 都运行 dawn
 
 # --- 提交所有 uci 修改 ---
 uci commit network

@@ -121,9 +121,10 @@ fi
 # --- 5G ---
 if [ -f "package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b1.dat" ]; then
     DAT_B1="package/mtk/drivers/wifi-profile/files/mt7981/mt7981.dbdc.b1.dat"
-    # 5G 频宽 160MHz，千兆宽带 + iPhone/笔记本均支持，配合 ch36 非 DFS 信道无驱动报错
-    # 注意：160MHz 需占用 ch36~ch64 连续频段，附近无 5G 雷达干扰即可
-    sed -i 's/BandWidth=5G_80/BandWidth=5G_160/g' "$DAT_B1" 2>/dev/null || true
+    # 5G 频宽 80MHz（HE80），千兆宽带协商 1.2Gbps 已足够
+    # HE160 在多 AP 漫游场景下信道无法错开，同频干扰严重
+    # HE80 允许相邻 AP 使用不同信道组（ch36 vs ch149），零干扰零降速漫游
+    # 保持 BandWidth=5G_80 不改，uci-defaults 中 htmode=HE80 与此一致
     # 禁用 5G MU-OFDMA（DL+UL），与部分手机浏览器兼容性冲突
     sed -i 's/MuOfdmaDlEnable=1/MuOfdmaDlEnable=0/g' "$DAT_B1" 2>/dev/null || true
     sed -i 's/MuOfdmaUlEnable=1/MuOfdmaUlEnable=0/g' "$DAT_B1" 2>/dev/null || true
