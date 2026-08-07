@@ -29,17 +29,18 @@ uci set dhcp.lan.ndp='disabled'
 # MTK 驱动编译开关只提供能力，wireless uci 必须显式打开才能生效
 # 对 2.4G 和 5G 两个接口都设置
 
-# --- 2.4G 接口 (mt7981_0_1) ---
-uci set wireless.mt7981_0_1.ft_over_ds='1'         # 802.11r: 通过 DS 分发 FT，更稳
-uci set wireless.mt7981_0_1.ft_psk_generate_local='1' # 802.11r: 本地生成 PMK-R1，无需控制器
-uci set wireless.mt7981_0_1.rrm='1'                 # 802.11k: 无线资源测量
-uci set wireless.mt7981_0_1.wnm_disassoc_imminent='1' # 802.11v: BSS Transition
+# --- 2.4G 接口 (MT7981_0_1) ---
+# 注意：immortalwrt-mt798x 实际 uci section 为大写，小写会写到不存在的节点
+uci set wireless.MT7981_0_1.ft_over_ds='1'         # 802.11r: 通过 DS 分发 FT，更稳
+uci set wireless.MT7981_0_1.ft_psk_generate_local='1' # 802.11r: 本地生成 PMK-R1，无需控制器
+uci set wireless.MT7981_0_1.rrm='1'                 # 802.11k: 无线资源测量
+uci set wireless.MT7981_0_1.wnm_disassoc_imminent='1' # 802.11v: BSS Transition
 
-# --- 5G 接口 (mt7981_1_2) ---
-uci set wireless.mt7981_1_2.ft_over_ds='1'
-uci set wireless.mt7981_1_2.ft_psk_generate_local='1'
-uci set wireless.mt7981_1_2.rrm='1'
-uci set wireless.mt7981_1_2.wnm_disassoc_imminent='1'
+# --- 5G 接口 (MT7981_1_2) ---
+uci set wireless.MT7981_1_2.ft_over_ds='1'
+uci set wireless.MT7981_1_2.ft_psk_generate_local='1'
+uci set wireless.MT7981_1_2.rrm='1'
+uci set wireless.MT7981_1_2.wnm_disassoc_imminent='1'
 
 # --- 5G WiFi：固定 ch36（非DFS）+ HE80 ---
 # 家用千兆宽带 HE80 协商速率 1.2Gbps 已足够跑满
