@@ -1,6 +1,6 @@
 #!/bin/sh
 # ============================================================
-# CT3003 首次启动优化脚本
+# CT3003 首次启动优化脚本（有线回程 AP 漫游版）
 # 由 op2.sh 复制到 /etc/uci-defaults/99-ct3003-optimize
 # uci-defaults 机制：首次启动执行一次，执行后自动删除
 # ============================================================
@@ -25,9 +25,61 @@ uci set dhcp.lan.ndp='disabled'
 uci set wireless.mt7981_1_2.channel='36'
 uci set wireless.mt7981_1_2.htmode='HE160'
 
+# ============================================================
+# --- 有线回程 AP 漫游：Dawn 漫游控制器配置 ---
+# ============================================================
+# Dawn 是 802.11k/v/r 漫游决策引擎，比 usteer 兼容性更好：
+# - 完整 802.11v BSS Transition Management 支持
+# - 802.11k 邻居报告
+# - 基于信号强度的主动引导
+# - 兼容小米/安卓/iOS/Windows 全平台
+
+# 启用 dawn 服务
+uci set dawn.@dawn[0].enabled='1'
+
+# --- 漫游阈值 ---
+# rssi_roam：触发主动漫游的 RSSI 阈值
+#   -70 dBm 适合多数家庭场景（偏激进，减少粘滞）
+#   如果用户常在 AP 间移动时可适当调高至 -65
+uci set dawn.@dawn[0].rssi_roam='-70'
+
+# rssi_kick：低于此值踢掉客户端（让其重新关联更近的 AP）
+# -80 dBm 保守值，避免边缘区域误踢
+uci set dawn.@dawn[0].rssi_kick='-80'
+
+# rssi_auth：低于此值拒绝新关联（引导到信号更好的 AP）
+# -80 dBm 与 kick 对齐
+uci set dawn.@dawn[0].rssi_auth='-80'
+
+# --- 802.11v BSS Transition Management ---
+# 主动发送 BSS TM Request 引导客户端漫游
+# 兼容性：iOS 11+/Android 8+/Windows 10+ 均支持
+uci set dawn.@dawn[0].bss_transition='1'
+
+# --- 802.11k 邻居报告 ---
+# 让客户端了解周围 AP 的信号信息，辅助漫游决策
+uci set dawn.@dawn[0].neighbor_report='1'
+
+# --- 漫游检查间隔 ---
+# 每 5 秒评估一次客户端信号，平衡响应速度与 CPU 开销
+uci set dawn.@dawn[0].hostapd_sync_interval='5'
+
+# ============================================================
+# --- 多 AP 统一配置提示 ---
+# ============================================================
+# 有线回程方案要求所有 AP 满足以下条件：
+# 1. 相同 SSID（2.4G 和 5G 分别统一）
+# 2. 相同加密方式（推荐 WPA3-SAE 兼容模式即 WPA2/WPA3-Mixed）
+# 3. 相同密码
+# 4. 不同 BSSID（自动，每台 AP 的 MAC 不同）
+# 5. 不同信道（避免同频干扰，相邻 AP 信岔开）
+# 6. 相同 VLAN/子网（所有 AP 的 LAN 在同一广播域）
+# 7. 所有 AP 都运行 dawn 并指向主 AP
+
 # --- 提交所有 uci 修改 ---
 uci commit network
 uci commit dhcp
 uci commit wireless
+uci commit dawn
 
 exit 0
