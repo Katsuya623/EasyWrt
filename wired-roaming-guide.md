@@ -219,11 +219,13 @@ ubus call dawn get_hearing_map  # 客户端信号图
 
 ```bash
 uci show wireless | grep -E "ft|rrm|wnm"
-# 应看到：
-# wireless.@wifi-iface[x].ft_over_ds='1'        (802.11r)
-# wireless.@wifi-iface[x].ft_psk_generate_local='1'
-# wireless.@wifi-iface[x].rrm='1'               (802.11k)
-# wireless.@wifi-iface[x].wnm_disassoc_imminent='1' (802.11v)
+# 应看到（在 wifi-iface 段上，不是 wifi-device）：
+# wireless.default_MT7981_1_1.ft_over_ds='1'        (802.11r 2.4G)
+# wireless.default_MT7981_1_1.ft_psk_generate_local='1'
+# wireless.default_MT7981_1_1.rrm='1'               (802.11k 2.4G)
+# wireless.default_MT7981_1_1.wnm_disassoc_imminent='1' (802.11v 2.4G)
+# wireless.default_MT7981_1_2.ft_over_ds='1'        (802.11r 5G)
+# ... 5G 同上
 ```
 
 **5.4 验证 IGMP snooping**
