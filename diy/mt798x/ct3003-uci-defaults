@@ -56,33 +56,27 @@ uci set network.lan.igmp_snooping='1'
 uci set network.lan.multicast_querier='1'
 
 # ============================================================
-# --- Dawn 漫游控制器 ---
+# --- MTK 原生 802.11r FT 支持 ---
 # ============================================================
-# ⚠️ 不能用 dawn.@dawn[0] 语法！uci-defaults 执行时 Dawn 包
-#    可能还没安装，@dawn[0] 找不到 section 会静默失败。
-#    必须用具名 section：dawn.global / dawn.802_11a / dawn.802_11g
-#    这些是 Dawn 默认配置文件里已有的 section 名
+# ⚠️ Dawn 在 MT7981 上不能用！MTK 闭源驱动 mt_wifi 不走 hostapd，
+#    Dawn 找不到 hostapd socket 报 "No hostapd sockets!" 无法工作。
+#    必须用 MTK 驱动原生的 FtSupport 参数（在 dat 文件里）。
+#    FtSupport=1 开启驱动级 802.11r FT，RRMEnable=1 开 802.11k
+#    这两个是 MTK 驱动内置的，不需要 hostapd
 
-# --- global 漫游策略 ---
-uci set dawn.global.kicking='3'                  # 踢除模式：3=基于 RSSI
-uci set dawn.global.kicking_threshold='20'       # 踢除阈值差：20dBm
-uci set dawn.global.min_number_to_kick='3'       # 至少 3 次评估才踢
-uci set dawn.global.use_station_count='0'        # 不按连接数决策
-uci set dawn.global.eval_probe_req='0'           # 不评估 probe 请求
-uci set dawn.global.eval_auth_req='0'
-uci set dawn.global.eval_assoc_req='0'
-uci set dawn.global.set_hostapd_nr='1'           # 关键！让 Dawn 写邻居报告到 hostapd
-uci set dawn.global.deny_assoc_reason='17'       # 802.11v 拒绝原因码 17
+# --- 开启 MTK 原生 FtSupport（2.4G + 5G）---
+for dat in /etc/wireless/mediatek/mt7981.dbdc.b0.dat \
+           /etc/wireless/mediatek/mt7981.dbdc.b1.dat; do
+    [ -f "$dat" ] && sed -i 's/^FtSupport=0$/FtSupport=1/' "$dat"
+done
 
-# --- 802_11a（5G 频段）---
-uci set dawn.802_11a.rssi_val='-70'              # 漫游触发：-70dBm
-uci set dawn.802_11a.low_rssi_val='-80'          # 踢除/拒绝：-80dBm
-uci set dawn.802_11a.rssi_center='-70'           # RSSI 中心值
+# DBDC_card0.dat 格式不同：FtSupport=0;0;
+[ -f /etc/wireless/mediatek/DBDC_card0.dat ] && \
+    sed -i 's/^FtSupport=0;0;$/FtSupport=1;1;/' /etc/wireless/mediatek/DBDC_card0.dat
 
-# --- 802_11g（2.4G 频段）---
-uci set dawn.802_11g.rssi_val='-70'
-uci set dawn.802_11g.low_rssi_val='-80'
-uci set dawn.802_11g.rssi_center='-70'
+# --- 禁用 Dawn（与 MTK 驱动不兼容）---
+/etc/init.d/dawn disable 2>/dev/null
+/etc/init.d/dawn stop 2>/dev/null
 
 # ============================================================
 # --- 提交所有 uci 修改 ---
@@ -90,6 +84,5 @@ uci set dawn.802_11g.rssi_center='-70'
 uci commit network
 uci commit dhcp
 uci commit wireless
-uci commit dawn
 
 exit 0
