@@ -74,6 +74,28 @@ done
 [ -f /etc/wireless/mediatek/DBDC_card0.dat ] && \
     sed -i 's/^FtSupport=0;0;$/FtSupport=1;1;/' /etc/wireless/mediatek/DBDC_card0.dat
 
+# --- 开启 MTK 原生 KickStaRssiLow（弱信号踢除）---
+# 当客户端 RSSI 低于 -75dBm 时 AP 主动踢掉，迫使客户端重连到信号更好的 AP
+# 这是解决安卓漫游粘滞最有效的方式——AP 侧主动踢，不等手机自己切
+for dat in /etc/wireless/mediatek/mt7981.dbdc.b0.dat \
+           /etc/wireless/mediatek/mt7981.dbdc.b1.dat; do
+    [ -f "$dat" ] && sed -i 's/^KickStaRssiLow=0$/KickStaRssiLow=-75/' "$dat"
+done
+
+# DBDC_card0.dat 格式：KickStaRssiLow=0;0
+[ -f /etc/wireless/mediatek/DBDC_card0.dat ] && \
+    sed -i 's/^KickStaRssiLow=0;0$/KickStaRssiLow=-75;-75/' /etc/wireless/mediatek/DBDC_card0.dat
+
+# --- 开启 MTK ForceRoamSupport ---
+# 配合 KickStaRssiLow，踢除时发送 802.11v BSS Transition Management Request
+# 引导客户端去信号更好的 AP（而非简单断开让它盲目重连）
+for dat in /etc/wireless/mediatek/mt7981.dbdc.b0.dat \
+           /etc/wireless/mediatek/mt7981.dbdc.b1.dat; do
+    [ -f "$dat" ] && sed -i 's/^ForceRoamSupport=$/ForceRoamSupport=1/' "$dat"
+done
+[ -f /etc/wireless/mediatek/DBDC_card0.dat ] && \
+    sed -i 's/^ForceRoamSupport=$/ForceRoamSupport=1/' /etc/wireless/mediatek/DBDC_card0.dat
+
 # --- 禁用 Dawn（与 MTK 驱动不兼容）---
 /etc/init.d/dawn disable 2>/dev/null
 /etc/init.d/dawn stop 2>/dev/null
