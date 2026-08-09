@@ -39,13 +39,15 @@ uci set wireless.MT7981_1_2.channel='36'      # ch36 非 DFS，无驱动报错
 
 # --- 2.4G ---
 uci set wireless.default_MT7981_1_1.ft_over_ds='1'
-uci set wireless.default_MT7981_1_1.ft_psk_generate_local='1'
+uci set wireless.default_MT7981_1_1.ft_psk_generate_local='0'  # 0=不独立生成PSK，两台AP用相同passphrase推导PMK，PMKID一致
+uci set wireless.default_MT7981_1_1.mobility_domain='0x0001'   # FT域标识，两台AP必须一致
 uci set wireless.default_MT7981_1_1.rrm='1'
 uci set wireless.default_MT7981_1_1.wnm_disassoc_imminent='1'
 
 # --- 5G ---
 uci set wireless.default_MT7981_1_2.ft_over_ds='1'
-uci set wireless.default_MT7981_1_2.ft_psk_generate_local='1'
+uci set wireless.default_MT7981_1_2.ft_psk_generate_local='0'  # 0=不独立生成PSK
+uci set wireless.default_MT7981_1_2.mobility_domain='0x0001'   # FT域标识，两台AP必须一致
 uci set wireless.default_MT7981_1_2.rrm='1'
 uci set wireless.default_MT7981_1_2.wnm_disassoc_imminent='1'
 
