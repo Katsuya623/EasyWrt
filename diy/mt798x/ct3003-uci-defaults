@@ -79,8 +79,6 @@ done
 #    在两个 AP 交界区域，两边信号都约 -75~-78，两边都踢 → 设备反复跳 AP → 完全断网
 #    ping-pong 比粘滞更糟糕：粘滞至少能上网（慢），ping-pong 完全不可用
 # ⚠️ ForceRoamSupport iwpriv 不支持（"Command not Support"），设了也没用
-# 解决安卓粘滞的正确方式：让客户端自主漫游（802.11r FT 加速认证）
-# MTK 驱动信号很强，单路由覆盖好时不希望踢人；双 AP 时靠 5G 信号衰减自然触发漫游
 for dat in /etc/wireless/mediatek/mt7981.dbdc.b0.dat \
            /etc/wireless/mediatek/mt7981.dbdc.b1.dat; do
     [ -f "$dat" ] && sed -i 's/^KickStaRssiLow=.*/KickStaRssiLow=0/' "$dat"
@@ -90,6 +88,20 @@ done
     sed -i 's/^KickStaRssiLow=.*/KickStaRssiLow=0/' /etc/wireless/mediatek/DBDC_card0.dat
 [ -f /etc/wireless/mediatek/DBDC_card0.dat ] && \
     sed -i 's/^ForceRoamSupport=.*/ForceRoamSupport=0/' /etc/wireless/mediatek/DBDC_card0.dat
+
+# --- AssocReqRssiThres：5G 拒绝弱信号关联（防粘滞，不会 ping-pong）---
+# 与 KickStaRssiLow 的关键区别：
+#   KickStaRssiLow = 踢已连的客户端 → 客户端重连到另一AP → 另一AP也踢 → ping-pong
+#   AssocReqRssiThres = 拒绝新的关联请求 → 客户端去连信号更好的AP → 不会反复拒绝
+# 5G 设 -70dBm：在 AP 覆盖边界拒绝弱信号设备关联，迫使它连信号更好的 AP
+# 2.4G 设 0（不过滤）：IoT 设备可能在远端，信号弱但只有 2.4G
+for dat in /etc/wireless/mediatek/mt7981.dbdc.b1.dat; do
+    [ -f "$dat" ] && sed -i 's/^AssocReqRssiThres=.*/AssocReqRssiThres=-70/' "$dat"
+done
+# 2.4G 不过滤
+for dat in /etc/wireless/mediatek/mt7981.dbdc.b0.dat; do
+    [ -f "$dat" ] && sed -i 's/^AssocReqRssiThres=.*/AssocReqRssiThres=0/' "$dat"
+done
 
 # --- 禁用 Dawn（与 MTK 驱动不兼容）---
 /etc/init.d/dawn disable 2>/dev/null
