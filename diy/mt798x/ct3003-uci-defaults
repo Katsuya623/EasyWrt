@@ -89,18 +89,16 @@ done
 [ -f /etc/wireless/mediatek/DBDC_card0.dat ] && \
     sed -i 's/^ForceRoamSupport=.*/ForceRoamSupport=0/' /etc/wireless/mediatek/DBDC_card0.dat
 
-# --- AssocReqRssiThres：5G 拒绝弱信号关联（防粘滞，不会 ping-pong）---
-# 与 KickStaRssiLow 的关键区别：
-#   KickStaRssiLow = 踢已连的客户端 → 客户端重连到另一AP → 另一AP也踢 → ping-pong
-#   AssocReqRssiThres = 拒绝新的关联请求 → 客户端去连信号更好的AP → 不会反复拒绝
-# 5G 设 -70dBm：在 AP 覆盖边界拒绝弱信号设备关联，迫使它连信号更好的 AP
-# 2.4G 设 0（不过滤）：IoT 设备可能在远端，信号弱但只有 2.4G
-for dat in /etc/wireless/mediatek/mt7981.dbdc.b1.dat; do
-    [ -f "$dat" ] && sed -i 's/^AssocReqRssiThres=.*/AssocReqRssiThres=-70/' "$dat"
-done
-# 2.4G 不过滤
-for dat in /etc/wireless/mediatek/mt7981.dbdc.b0.dat; do
-    [ -f "$dat" ] && sed -i 's/^AssocReqRssiThres=.*/AssocReqRssiThres=0/' "$dat"
+# --- AssocReqRssiThres：保持禁用 ---
+# ⚠️ AssocReqRssiThres=-70 在实测中同样有问题：
+#    当设备在两 AP 交界区域时，两边信号都低于 -70 → 两边都拒绝关联 → 设备连不上任何 AP
+#    虽然 KickStaRssiLow 是踢已连接设备(ping-pong)，AssocReqRssiThres 是拒新关联，
+#    但效果一样：MTK 驱动信号太强，边界区域两边都不过阈值，设备被双向拒绝
+# 结论：MT7981 + 闭源驱动的 AP 侧主动干预（kick/reject/roam）全部不可用
+#       只能依赖客户端自主漫游 + 802.11r FT 加速认证
+for dat in /etc/wireless/mediatek/mt7981.dbdc.b0.dat \
+           /etc/wireless/mediatek/mt7981.dbdc.b1.dat; do
+    [ -f "$dat" ] && sed -i 's/^AssocReqRssiThres=.*/AssocReqRssiThres=0;0/' "$dat"
 done
 
 # --- 禁用 Dawn（与 MTK 驱动不兼容）---
