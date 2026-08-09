@@ -30,17 +30,18 @@ MTK 闭源驱动 `mt_wifi` 的 802.11r FT 实现有两个致命缺陷：
 
 **结论**：开着 FtSupport 反而让安卓设备在 FT 认证失败时反复重试导致断连，关掉后所有设备走标准 4-way 认证，反而更稳定。
 
-### AP 侧主动干预全部不可用
+### AP 侧主动干预限制
 
 | 手段 | 结果 | 原因 |
 |------|------|------|
 | Dawn | ❌ 不工作 | 没有 hostapd socket |
 | FtSupport=1 (802.11r) | ❌ 反而有害 | PMKID invalid + R0KH unreachable |
-| KickStaRssiLow=-75 | ❌ ping-pong 死循环 | 交界区两边都踢→设备反复跳AP→断网 |
-| AssocReqRssiThres=-70 | ❌ 双向拒绝 | 交界区两边都拒→设备连不上任何AP |
+| KickStaRssiLow（FT 开着时） | ❌ ping-pong 死循环 | 被踢→FT重试→失败→再踢→死循环 |
+| KickStaRssiLow（FT 关闭后） | ✅ **可用** | 被踢→直接4-way→连最强AP→稳定 |
+| AssocReqRssiThres | ❌ 双向拒绝 | 交界区两边都拒→设备连不上任何AP |
 | ForceRoamSupport | ❌ 不支持 | iwpriv "Command not Support" |
 
-**唯一可用方案：客户端自主漫游 + 802.11k 邻居报告辅助**
+**方案：客户端自主漫游 + 802.11k 邻居报告 + KickStaRssiLow 辅助踢弱信号**
 
 ---
 
@@ -125,6 +126,8 @@ Internet
 | IGMP snooping | 启用 | 组播精准投递 |
 | MTK FtSupport | **0（禁用）** | 802.11r FT 在闭源驱动上有致命缺陷 |
 | MTK RRMEnable | 1 | 802.11k 邻居报告（保留，帮助客户端发现AP） |
+| KickStaRssiLow (5G) | **-70** | 踢弱信号设备，帮助安卓漫游（FT关闭后可用） |
+| KickStaRssiLow (2.4G) | 0 | 2.4G不踢，穿墙信号强踢人风险大 |
 
 ---
 
@@ -287,8 +290,8 @@ ps | grep dawn | grep -v grep
 
 ### 安卓 (MIUI)
 - MIUI 漫游策略非常保守，-85dBm 都不切
-- **无解**：这是客户端限制，AP 端无法强制
-- 唯一方案：手动关闭 WiFi 再打开
+- **KickStaRssiLow=-70 辅助踢弱信号**：当手机信号低于 -70dBm 时 AP 主动踢掉，手机重连到信号更强的 AP
+- 如果仍然粘滞 → 说明信号还高于 -70，可尝试更激进的 -65（但交界区 ping-pong 风险增加）
 - 随机 MAC 不影响漫游（漫游看的是认证信息，不是 MAC）
 
 ---
@@ -373,7 +376,7 @@ ps | grep dawn | grep -v grep
 
 | 文件 | 变更 |
 |---|---|
-| `diy/mt798x/ct3003-uci-defaults` | FtSupport=0 + 删除FT参数 + rrm=1 + IGMP snooping + 禁用 Dawn + HE80 |
+| `diy/mt798x/ct3003-uci-defaults` | FtSupport=0 + 删除FT参数 + rrm=1 + KickStaRssiLow 5G=-70 + IGMP snooping + 禁用 Dawn + HE80 |
 | `diy/mt798x/op2.sh` | 5G 频宽从 HE160 改为 HE80 |
 | `diy/mt798x/ct3003-rc-local` | RPS + IGMP snooping sysfs 强制 + 禁 IPv6 |
 | `diy/mt798x/ct3003-firewall-user` | IPv6 FORWARD REJECT |
@@ -384,6 +387,8 @@ ps | grep dawn | grep -v grep
 |---|---|---|---|
 | FtSupport | dat 文件 | **0（禁用）** | 802.11r FT 在闭源驱动上有致命缺陷 |
 | RRMEnable | dat 文件 | 1 | 802.11k 邻居报告（保留） |
+| KickStaRssiLow (5G) | dat 文件 | **-70** | 踢弱信号设备，帮助安卓漫游 |
+| KickStaRssiLow (2.4G) | dat 文件 | 0 | 2.4G 不踢 |
 | ft_over_ds | UCI wifi-iface | 删除 | FT 参数已清除 |
 | ft_psk_generate_local | UCI wifi-iface | 删除 | FT 参数已清除 |
 | mobility_domain | UCI wifi-iface | 删除 | FT 参数已清除 |

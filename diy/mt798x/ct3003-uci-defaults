@@ -97,18 +97,22 @@ done
 [ -f /etc/wireless/mediatek/DBDC_card0.dat ] && \
     sed -i 's/^FtSupport=1;1;$/FtSupport=0;0;/' /etc/wireless/mediatek/DBDC_card0.dat
 
-# --- KickStaRssiLow 和 ForceRoamSupport：保持禁用 ---
-# ⚠️ KickStaRssiLow=-75 会导致 ping-pong 死循环！
-#    在两个 AP 交界区域，两边信号都约 -75~-78，两边都踢 → 设备反复跳 AP → 完全断网
-#    ping-pong 比粘滞更糟糕：粘滞至少能上网（慢），ping-pong 完全不可用
+# --- KickStaRssiLow：5G 踢弱信号设备，帮助安卓漫游 ---
+# 之前 KickStaRssiLow 在 FT 开着时会 ping-pong 死循环：
+#   被踢 → 尝试 FT → PMKID invalid → 反复重试 → 死循环
+# 现在 FT 已关闭，被踢后直接做完整 4-way 认证 → 连信号最强的 AP → 不会死循环
+# -70dBm 阈值：信号强于 -70 不踢（手机在附近/交界区），弱于 -70 才踢（手机走远了）
 # ⚠️ ForceRoamSupport iwpriv 不支持（"Command not Support"），设了也没用
 for dat in /etc/wireless/mediatek/mt7981.dbdc.b0.dat \
            /etc/wireless/mediatek/mt7981.dbdc.b1.dat; do
-    [ -f "$dat" ] && sed -i 's/^KickStaRssiLow=.*/KickStaRssiLow=0/' "$dat"
+    # b0 = 2.4G 不踢(0)，b1 = 5G 踢 -70
+    [ "$dat" = "/etc/wireless/mediatek/mt7981.dbdc.b0.dat" ] && sed -i 's/^KickStaRssiLow=.*/KickStaRssiLow=0/' "$dat"
+    [ "$dat" = "/etc/wireless/mediatek/mt7981.dbdc.b1.dat" ] && sed -i 's/^KickStaRssiLow=.*/KickStaRssiLow=-70/' "$dat"
     [ -f "$dat" ] && sed -i 's/^ForceRoamSupport=.*/ForceRoamSupport=0/' "$dat"
 done
+# DBDC_card0.dat 格式不同
 [ -f /etc/wireless/mediatek/DBDC_card0.dat ] && \
-    sed -i 's/^KickStaRssiLow=.*/KickStaRssiLow=0/' /etc/wireless/mediatek/DBDC_card0.dat
+    sed -i 's/^KickStaRssiLow=.*/KickStaRssiLow=0;-70/' /etc/wireless/mediatek/DBDC_card0.dat
 [ -f /etc/wireless/mediatek/DBDC_card0.dat ] && \
     sed -i 's/^ForceRoamSupport=.*/ForceRoamSupport=0/' /etc/wireless/mediatek/DBDC_card0.dat
 
@@ -117,8 +121,11 @@ done
 #    当设备在两 AP 交界区域时，两边信号都低于 -70 → 两边都拒绝关联 → 设备连不上任何 AP
 #    虽然 KickStaRssiLow 是踢已连接设备(ping-pong)，AssocReqRssiThres 是拒新关联，
 #    但效果一样：MTK 驱动信号太强，边界区域两边都不过阈值，设备被双向拒绝
-# 结论：MT7981 + 闭源驱动的 AP 侧主动干预（kick/reject/roam/FT）全部不可用
-#       只能依赖客户端自主漫游（Apple 最积极，安卓需手动切换）
+# 结论：MT7981 + 闭源驱动下：
+#   - FT 完全不可用（R0KH unreachable + PMKID invalid）
+#   - AssocReqRssiThres 仍有双向拒绝风险
+#   - KickStaRssiLow 在关闭 FT 后可用（-70dBm 踢弱信号，帮助安卓漫游）
+#   客户端自主漫游（Apple 积极）+ KickStaRssiLow 辅助（安卓被踢后重连到近端 AP）
 for dat in /etc/wireless/mediatek/mt7981.dbdc.b0.dat \
            /etc/wireless/mediatek/mt7981.dbdc.b1.dat; do
     [ -f "$dat" ] && sed -i 's/^AssocReqRssiThres=.*/AssocReqRssiThres=0;0/' "$dat"
